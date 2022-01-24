@@ -1,0 +1,40 @@
+{
+    macro_rules! action {
+        (
+            $id: literal,
+            $block: literal,
+            $action: literal,
+            $void: literal,
+            $args: expr
+        ) => {
+            Action {
+                id: $id.to_string(),
+                block: $block.to_string(),
+                action: $action.to_string(),
+                void: $void,
+                args: Items {
+                    items: $args
+                }
+            }
+        }
+    }
+    
+    let mut map = HashMap::new();
+    
+    macro_rules! insert {
+        ($x: literal) => {
+            map.insert($x.to_string(), action!("block", "set_var", $x, false, vec![]));
+        };
+    }
+
+    insert!("+");
+    insert!("-");
+    insert!("*");
+    insert!("/");
+    insert!("%");
+    insert!("=");
+    insert!("+=");
+    insert!("-=");
+
+    map
+}
