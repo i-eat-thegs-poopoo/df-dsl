@@ -13,10 +13,8 @@ fn main() {
         .expect("error: could not find file");
 
     let (out, mut errs) = parser::gen().parse_recovery(src);
-    if let Some(v) = out {
-        let mut program = Program::new(errs);
-        program.lines(v);
-        program.emit();
+    if let Some(decls) = out {
+        let mut program = Program::gen(decls, errs);
         println!("{:#?}", &mut program);
         errs = program.errs;
     }

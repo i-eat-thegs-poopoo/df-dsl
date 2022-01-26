@@ -1,10 +1,11 @@
 
 mod codeblock;
 mod emit;
+mod translate;
 
 use chumsky::prelude::*;
 use serde::{ Serialize, Deserialize };
-use serde_json::{ Value, error::Category, json };
+use serde_json::{ Value, error::Category };
 use crate::parser::{stmt::{ Stmt, /*Loop*/ }, decl::Decl };
 use std::{ ops::Range, collections::{ HashMap, hash_map::Entry }, mem::take as mtake };
 use codeblock::Block;
@@ -19,6 +20,12 @@ pub struct Program {
     templates: HashMap<String, Vec<Block>>,
     temp: usize
 }
+
+macro_rules! if_blocks {
+    () => { "if_var" | "if_player" | "if_entity" | "if_game" };
+}
+pub(crate) use if_blocks;
+
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Action {
@@ -37,16 +44,19 @@ struct Items {
 
 impl Program {
 
-    pub fn new(errs: Vec<Simple<char>>) -> Self {
+    pub fn gen(decls: Vec<(Decl, Range<usize>)>, errs: Vec<Simple<char>>) -> Self {
         let actions = include!("base.in");
-        Self {
+        let mut out = Self {
             errs,
             funcs: Some(HashMap::new()),
             args: HashMap::new(),
             actions,
             templates: HashMap::new(),
             temp: 0
-        }
+        };
+        out.lines(decls);
+        out.emit();
+        out
     }
 
     fn temp(&mut self) -> String {
@@ -55,7 +65,7 @@ impl Program {
         out
     }
 
-    pub fn lines(&mut self, decls: Vec<(Decl, Range<usize>)>) {
+    fn lines(&mut self, decls: Vec<(Decl, Range<usize>)>) {
         for (decl, span) in decls.into_iter() {
             match decl {
                 Decl::Func(name, args, body) => match self.funcs
@@ -112,7 +122,7 @@ impl Program {
         }
     }
 
-    pub fn emit(&mut self) {
+    fn emit(&mut self) {
         let mut map = HashMap::new();
         let funcs = self.funcs
             .take()
@@ -120,9 +130,8 @@ impl Program {
             .into_iter();
         for (key, mut body) in funcs {
             let body = mtake(&mut body);
-            let (mut stmt, void) = EmitStmt::new(self, key).emit(body);
-            stmt.finalize(None, void, false);
-            map.extend(stmt.map);
+            let EmitStmt { mut out, .. } = EmitStmt::run(self, body);
+            map.insert(key, out);
         }
         self.templates = map;
     }
