@@ -14,9 +14,9 @@ fn main() {
 
     let (out, mut errs) = parser::gen().parse_recovery(src);
     if let Some(decls) = out {
-        let mut program = Program::gen(decls, errs);
-        println!("{:#?}", &mut program);
-        errs = program.errs;
+        let (json, e) = Program::gen(decls, errs, 24);
+        println!("{}", json.join("\n\n"));
+        errs = e;
     }
     errs.into_iter().for_each(|x| println!("error: {x:?}"))
 }

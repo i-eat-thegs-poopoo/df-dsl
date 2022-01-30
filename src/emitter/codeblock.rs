@@ -1,4 +1,6 @@
 
+use serde_json::{ Value, json };
+
 #[derive(Debug, Clone)]
 pub enum Item {
     Num(String),
@@ -7,6 +9,7 @@ pub enum Item {
 }
 
 impl Item {
+
     pub fn get(self) -> String {
         match self {
             Self::Num(e) => e,
@@ -14,6 +17,31 @@ impl Item {
             Self::Var(e) => e
         }
     }
+
+    pub fn json(self) -> Value {
+        match self {
+            Self::Num(e) => json!({
+                "id": "num",
+                "data": {
+                    "name": e
+                }
+            }),
+            Self::Text(e) => json!({
+                "id": "txt",
+                "data": {
+                    "name": e
+                }
+            }),
+            Self::Var(e) => json!({
+                "id": "var",
+                "data": {
+                    "name": e,
+                    "scope": "local"
+                }
+            })
+        }
+    }
+
 }
 
 impl std::fmt::Display for Item {
@@ -26,18 +54,22 @@ impl std::fmt::Display for Item {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Block {
     BlockAction(String, Vec<Item>),
     Call(String),
 
-    IfAction(String, bool, Vec<Item>),
+    IfAction(String, bool, bool, Vec<Item>), // second bool is if it has else stmt
     Else,
     IfClose,
 
     Repeat(String, Vec<Item>),
     ReClose,
     
-    Ctrl(String),
-    Wait(Item)
+    RetPlaceholder,
+    None
+}
+
+impl Default for Block {
+    fn default() -> Self { Self::None }
 }

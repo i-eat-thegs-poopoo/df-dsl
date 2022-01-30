@@ -105,12 +105,14 @@ pub fn gen() -> impl Parser<char, Stmt, Error = Simple<char>> {
         let ret_stmt = just("return")
             .padded()
             .ignore_then(expr::gen().or_not())
+            .then_ignore(just(";").padded())
             .map(Stmt::Return)
             .labelled("return statement");
 
         let wait = just("wait")
             .padded()
             .ignore_then(expr::gen())
+            .then_ignore(just(";").padded())
             .map(Stmt::Wait)
             .labelled("wait statement");
         
@@ -126,15 +128,19 @@ pub fn gen() -> impl Parser<char, Stmt, Error = Simple<char>> {
             .then_ignore(just(';'))
             .map(|(var, val)| Stmt::Assign(var, val))
             .labelled("assignment");
+        
+        let flow = just("continue").map(|_| Stmt::Continue)
+            .or(just("break").map(|_| Stmt::Break))
+            .or(just("end").map(|_| Stmt::End))
+            .then_ignore(just(";").padded())
+            .labelled("control flow");
 
         just(';')
             .padded()
             .map(|_| Stmt::None)
             .or(block)
             .or(if_stmt)
-            .or(just("continue").map(|_| Stmt::Continue))
-            .or(just("break").map(|_| Stmt::Break))
-            .or(just("end").map(|_| Stmt::End))
+            .or(flow)
             .or(ret_stmt)
             .or(wait)
             .or(loop_stmt)

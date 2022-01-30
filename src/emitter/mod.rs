@@ -18,7 +18,8 @@ pub struct Program {
     args: HashMap<String, Vec<String>>,
     actions: HashMap<String, Action>,
     templates: HashMap<String, Vec<Block>>,
-    temp: usize
+    len: usize,
+    temp: u32
 }
 
 macro_rules! if_blocks {
@@ -27,36 +28,69 @@ macro_rules! if_blocks {
 pub(crate) use if_blocks;
 
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Action {
     id: String,
     block: String,
     action: String,
     #[serde(default, skip_serializing)]
     void: bool,
+    #[serde(flatten)]
+    extra: HashMap<String, Value>,
     args: Items
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Items {
-    items: Vec<Value>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Items {
+    items: Vec<DfItem>,
+    #[serde(flatten)]
+    extra: HashMap<String, Value>,
+    #[serde(default, skip_serializing)]
+    slots: Vec<u32>,
+    #[serde(default, skip_serializing)]
+    curr: u32
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DfItem {
+    item: Value,
+    slot: u32
+}
+
+impl Action {
+
+    pub fn push(&mut self, item: Value) {
+        if self.args.slots.contains(&self.args.curr) {
+            self.args.curr += 1;
+            self.push(item);
+        } else {
+            self.args.slots.push(self.args.curr);
+            self.args.items.push(DfItem { item, slot: self.args.curr });
+        }
+    }
+
+    pub fn append(&mut self, items: Vec<Value>) {
+        for i in items { self.push(i) }
+    }
+
 }
 
 impl Program {
 
-    pub fn gen(decls: Vec<(Decl, Range<usize>)>, errs: Vec<Simple<char>>) -> Self {
-        let actions = include!("base.in");
+    pub fn gen(decls: Vec<(Decl, Range<usize>)>, errs: Vec<Simple<char>>, len: usize) -> (Vec<String>, Vec<Simple<char>>) {
+        let actions = include!("base.rs");
         let mut out = Self {
             errs,
             funcs: Some(HashMap::new()),
             args: HashMap::new(),
             actions,
             templates: HashMap::new(),
+            len,
             temp: 0
         };
         out.lines(decls);
         out.emit();
-        out
+        translate::translate(out)
     }
 
     fn temp(&mut self) -> String {
@@ -103,7 +137,7 @@ impl Program {
                             }))
                         })
                     ).map(|x| x.into_iter())
-                    .map(|iter| iter.for_each(|(name, body)| match self.actions.entry(name.clone())  {
+                    .map(|iter| iter.for_each(|(name, mut body)| match self.actions.entry(name.clone())  {
                         Entry::Occupied(_) => self.errs.push(Simple::custom(span.clone(),
                             format!("action `{name}` is already defined")
                         )),
@@ -112,7 +146,11 @@ impl Program {
                             .expect("something abcdefg")
                             .get(&name)
                             .is_none() 
-                        { entry.or_insert(body); } else {
+                        {
+                            body.args.slots = body.args.items.iter().map(|x| x.slot).collect();
+                            body.args.curr = 0;
+                            entry.or_insert(body); 
+                        } else {
                             self.errs.push(Simple::custom(span.clone(), 
                                 format!("`{name}` is already defined as an function")
                             ));
@@ -123,17 +161,14 @@ impl Program {
     }
 
     fn emit(&mut self) {
-        let mut map = HashMap::new();
         let funcs = self.funcs
             .take()
             .expect("why is template list empty mmm,")
             .into_iter();
         for (key, mut body) in funcs {
             let body = mtake(&mut body);
-            let EmitStmt { mut out, .. } = EmitStmt::run(self, body);
-            map.insert(key, out);
+            EmitStmt::run(self, body, key);
         }
-        self.templates = map;
     }
 
 }

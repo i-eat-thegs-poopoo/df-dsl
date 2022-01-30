@@ -1,7 +1,8 @@
 
 use chumsky::prelude::*;
-use crate::parser::{ expr::Expr, stmt::{ Stmt, /*Loop*/ } };
+use crate::parser::{ expr::Expr, stmt::{ Stmt, Loop } };
 use super::{ Program, Action, codeblock::{ Item, Block }, if_blocks };
+use std::{ collections::HashMap, mem::take as mtake };
 
 macro_rules! code {
     ($var: ident, $name: expr $( , $extra: expr )*; $( $args: expr ),*) => {
@@ -16,26 +17,48 @@ macro_rules! code {
 #[derive(Debug)]
 pub struct EmitStmt<'a> {
     parent: &'a mut Program,
-    pub out: Vec<Block>,
+    out: EmitLine,
     temp: u32
 }
 
 impl <'a> EmitStmt<'a> {
 
-    pub fn run(parent: &'a mut Program, stmt: Stmt) -> Self {
+    pub fn run(parent: &'a mut Program, stmt: Stmt, name: String) {
         let emit = Self {
             parent,
-            out: Vec::new(),
+            out: EmitLine::new(name),
             temp: 0
         }.emit(stmt);
-        emit.out.push(code!(BlockAction, "-="; Item::Var("?d".to_string())));
-        emit
+        let templates = &mut emit.parent.templates;
+        let mut exprs = HashMap::new();
+        emit.out.insert(templates);
+        templates.retain(|name, vec| if vec.len() == 1 {
+            if let Some('?') = name.chars().next() {
+                let func = vec.get_mut(0).unwrap();
+                exprs.insert(name.clone(), mtake(func));
+                return false;
+            }
+            true
+        } else { true });
+        for vec in templates.values_mut() {
+            vec.iter_mut().for_each(|item| if let Block::Call(s) = item {
+                if let Some(replace) = exprs.get(s) { *item = replace.clone() }
+            })
+        }
     }
 
     fn temp(&mut self) -> Item {
         let out = format!("%var(?d)?{}", self.temp);
         self.temp += 1;
         Item::Var(out)
+    }
+
+    fn push(&mut self, item: Block) {
+        self.out.push(item, self.parent);
+    }
+
+    fn append(&mut self, items: Vec<Block>) {
+        for item in items.into_iter() { self.push(item) }
     }
     
     fn emit(mut self, stmt: Stmt) -> Self {
@@ -47,12 +70,11 @@ impl <'a> EmitStmt<'a> {
             S::Assign(var, e) => {
                 let (operand, assign) = self.emit_expr(e, Some(Item::Var(var.clone())));
                 if assign {
-                    self.out.push(code!(BlockAction, "="; Item::Var(var), operand));
+                    self.push(code!(BlockAction, "="; Item::Var(var), operand));
                 }
             }
-            S::Block(vec) => for stmt in vec.into_iter() {
-                self = self.emit(stmt);
-            }
+
+            S::Block(vec) => for stmt in vec.into_iter() { self = self.emit(stmt) }
             S::If(e, if_clause, else_clause) => self = self.emit_if(
                 false,
                 e, 
@@ -60,43 +82,30 @@ impl <'a> EmitStmt<'a> {
                 else_clause.map(|x| *x)
             ),
 
-            S::Return(e) => {
-                if let Some(v) = e {
-                    let value = self.emit_expr(v, None).0;
-                    self.out.push(code!(BlockAction, "="; Item::Var("%var(%var(?d)?return)".to_string()), value));
-                }
+            S::Return(e) => if let Some(v) = e {
+                let value = self.emit_expr(v, None).0;
+                self.push(code!(BlockAction, "="; Item::Var("%var(%var(?d)?return)".to_string()), value));
+                self.push(Block::RetPlaceholder);
             }
 
             S::Wait(e) => { 
                 let wait = self.emit_expr(e, None).0;
-                self.out.push(Block::Wait(wait));
+                self.push(code!(BlockAction, "?Wait"; wait));
             }
 
-
-            
-
-            // !
-            // ! TODO
-            // !
-
-            S::Loop(_kind, stmt) => {
-                // use Loop as L;
-                // match kind {
-                //     // L::Forever => self.out.push(Block::Repeat("Forever".to_string(), Vec::new())),
-                //     // L::While(e) => todo!(),
-                //     _ => todo!()
-                // }
+            S::Loop(kind, stmt) => {
+                use Loop as L;
+                match kind {
+                    L::Forever => self.push(Block::Repeat("Forever".to_string(), Vec::new())),
+                    _ => todo!()
+                }
                 self = self.emit(*stmt);
-                self.out.push(Block::ReClose);
+                self.push(Block::ReClose);
             }
 
-
-
-
-
-            S::Continue => self.out.push(Block::Ctrl("StopRepeat".to_string())),
-            S::Break => self.out.push(Block::Ctrl("Skip".to_string())),
-            S::End => self.out.push(Block::Ctrl("End".to_string())),
+            S::Continue => self.push(code!(BlockAction, "?SkipIteration";)),
+            S::Break => self.push(code!(BlockAction, "?StopRepeat";)),
+            S::End => self.push(code!(BlockAction, "?End";)),
 
             S::None => (),
         }
@@ -113,13 +122,14 @@ impl <'a> EmitStmt<'a> {
     ) -> Self {
 
         use Expr as E;
+        let has_else = else_clause.is_some();
 
         macro_rules! if_body {
             (@if) => { if_body!(@in if_clause) };
             (@else $body: expr) => { if_body!(@in $body) };
             (@in $body: expr) => {
                 self = self.emit($body);
-                self.out.push(Block::IfClose);
+                self.push(Block::IfClose);
             };
         }
 
@@ -128,7 +138,7 @@ impl <'a> EmitStmt<'a> {
                 $( $stmts )*
                 if_body!(@if);
                 if let Some(v) = else_clause {
-                    self.out.push(Block::Else);
+                    self.push(Block::Else);
                     if_body!(@else v);
                 }
             }};
@@ -138,21 +148,21 @@ impl <'a> EmitStmt<'a> {
             ($name: expr, $lhs: expr, $rhs: expr) => { emit_if! {
                 let lhs = self.emit_expr(*$lhs, None).0;
                 let rhs = self.emit_expr(*$rhs, None).0;
-                self.out.push(code!(IfAction, $name, not; lhs, rhs));
+                self.push(code!(IfAction, $name, not, has_else; lhs, rhs));
             } };
         }
 
         macro_rules! expr { 
             ($e: expr) => { emit_if! {
                 let operand = self.emit_expr($e, None).0;
-                self.out.push(code!(IfAction, "!=", not; operand, Item::Num("0".to_string())));
+                self.push(code!(IfAction, "!=", not, has_else; operand, Item::Num("0".to_string())));
             } };
         }
 
         match e {
             E::Not(e) => self = self.emit_if(!not, *e, if_clause, else_clause),
 
-            E::Eq(lhs, rhs) => comp!("=", lhs, rhs),
+            E::Eq(lhs, rhs) => comp!("==", lhs, rhs),
             E::Ne(lhs, rhs) => comp!("!=", lhs, rhs),
             E::Gt(lhs, rhs) => comp!(">", lhs, rhs),
             E::Lt(lhs, rhs) => comp!("<", lhs, rhs),
@@ -161,15 +171,13 @@ impl <'a> EmitStmt<'a> {
 
             E::Func(span, func, args) => if let E::Ident(func) = *func {
                 match self.parent.actions.get(&func) {
-
                     Some(Action { block, .. }) if matches!(block.as_str(), if_blocks!()) => emit_if! {
                         let args = args
                             .into_iter()
                             .map(|arg| self.emit_expr(arg, None).0)
                             .collect::<Vec<_>>();
-                        self.out.push(Block::IfAction(func, not, args));
+                        self.push(Block::IfAction(func, not, has_else, args));
                     },
-
                     _ => expr!(E::Func(span, Box::new(E::Ident(func)), args))
                 }
             } else { todo!() }
@@ -188,9 +196,9 @@ impl <'a> EmitStmt<'a> {
                 let var = default.unwrap_or_else(|| self.temp());
                 let lhs = self.emit_expr(*$lhs, None).0;
                 let rhs = self.emit_expr(*$rhs, None).0;
-                self.out.append(&mut vec![
+                self.append(vec![
                     code!(BlockAction, "="; var.clone(), Item::Num("0".to_string())),
-                    code!(IfAction, $name, false; lhs, rhs),
+                    code!(IfAction, $name, false, false; lhs, rhs),
                     code!(BlockAction, "="; var.clone(), Item::Num("1".to_string())),
                     Block::IfClose
                 ]);
@@ -202,7 +210,7 @@ impl <'a> EmitStmt<'a> {
             ($name: expr, $( $op: ident ),*; $( $args: expr ),*) => {{
                 let var = default.unwrap_or_else(|| self.temp());
                 $( let $op = self.emit_expr(*$op, None).0; )*
-                self.out.push(code!(BlockAction, $name; var.clone(), $( $args ),*));
+                self.push(code!(BlockAction, $name; var.clone(), $( $args ),*));
                 (var, false)
             }};
         }
@@ -228,7 +236,7 @@ impl <'a> EmitStmt<'a> {
                 &lhs, &rhs, &lhs, &rhs
             ))),
 
-            E::Eq(lhs, rhs) => comp!("=", lhs, rhs),
+            E::Eq(lhs, rhs) => comp!("==", lhs, rhs),
             E::Ne(lhs, rhs) => comp!("!=", lhs, rhs),
             E::Gt(lhs, rhs) => comp!(">", lhs, rhs),
             E::Lt(lhs, rhs) => comp!("<", lhs, rhs),
@@ -239,21 +247,22 @@ impl <'a> EmitStmt<'a> {
                 let var = default.unwrap_or_else(|| self.temp());
                 if let Some(v) = self.parent.args.get(&func) {
                     let mut params = v.clone().into_iter();
-                    self.out.append(&mut vec![
+                    self.append(vec![
                         code!(BlockAction, "="; Item::Var("?return".to_string()), Item::Text(var.clone().get())),
                         code!(BlockAction, "+="; Item::Var("?d".to_string())),
                         code!(BlockAction, "="; Item::Var("%var(?d)?return".to_string()), Item::Var("?return".to_string())),
                     ]);
                     for (param, arg) in params.by_ref().zip(args.into_iter()) {
                         let arg = self.emit_expr(arg, None).0;
-                        self.out.push(code!(BlockAction, "="; Item::Var(format!("%var(?d)!{}", param)), arg));
+                        self.push(code!(BlockAction, "="; Item::Var(format!("%var(?d)!{}", param)), arg));
                     }
                     if params.next().is_some() {
                         self.parent.errs.push(Simple::custom(span, 
                             format!("not all parameters have been supplied in function call")
                         ));
                     }
-                    self.out.push(Block::Call(func));
+                    self.push(Block::Call(func));
+                    self.push(code!(BlockAction, "-="; Item::Var("?d".to_string())));
                 } else if let Some(Action { block, void, .. }) = self.parent.actions.get(&func) {
                     if let if_blocks!() = block.as_str() {
 
@@ -261,7 +270,7 @@ impl <'a> EmitStmt<'a> {
                             .into_iter()
                             .map(|arg| self.emit_expr(arg, None).0)
                             .collect::<Vec<_>>();
-                        self.out.append(&mut vec![
+                        self.append(vec![
                             code!(BlockAction, "="; var.clone(), Item::Num("0".to_string())),
                             Block::BlockAction(func, args),
                             code!(BlockAction, "="; var.clone(), Item::Num("1".to_string())),
@@ -276,7 +285,7 @@ impl <'a> EmitStmt<'a> {
                             .map(|arg| self.emit_expr(arg, None).0)
                             .collect::<Vec<_>>();
                         if void { args.insert(0, var.clone()) }
-                        self.out.push(Block::BlockAction(func, args));
+                        self.push(Block::BlockAction(func, args));
 
                     }
                 } else {
@@ -287,6 +296,103 @@ impl <'a> EmitStmt<'a> {
                 (var, false)
             } else { todo!() }
         }
+    }
+
+}
+
+#[derive(Debug)]
+struct EmitLine {
+    map: HashMap<String, Vec<Block>>,
+    stack: Vec<(usize, String, Vec<Block>)>
+}
+
+impl EmitLine {
+
+    fn new(name: String) -> Self {
+        Self {
+            map: HashMap::new(),
+            stack: vec![(0, name, Vec::new())]
+        }
+    }
+
+    fn push(&mut self, item: Block, program: &mut Program) {
+        // max: 5
+        // - - - - -
+        // - { # } #
+        // (depth * 2 + 1) from the end
+        let depth = self.stack.len();
+        let (if_stmts, _, vec) = self.stack.last_mut().unwrap();
+
+        macro_rules! new { () => {
+            let temp = program.temp();
+            vec.push(Block::Call(temp.clone()));
+            self.stack.push((0, temp, Vec::new()));
+            self.push(item, program);
+        }; }
+
+        let wrap = vec.len() + *if_stmts;
+
+        use Block as B;
+        match item {
+
+            // if + else
+            B::IfAction(_, _, true, _) => if wrap + 6 >= program.len {
+                new!();
+            } else {
+                *if_stmts += 5;
+                vec.push(item);
+            }
+
+            // expect to be >= 3 width
+            B::IfAction(..) | B::Repeat(..) => if wrap + 3 >= program.len {
+                new!();
+            } else {
+                *if_stmts += 2;
+                vec.push(item);
+            }
+
+            B::Else => {
+                *if_stmts -= 1;
+                vec.push(item);
+            },
+
+            B::IfClose | B::ReClose => if *if_stmts == 0 {
+                let (_, name, vec) = self.stack.pop().unwrap();
+                self.map.insert(name, vec);
+                self.stack
+                    .last_mut()
+                    .unwrap().2
+                    .push(item);
+            } else {
+                *if_stmts -= 2;
+                vec.push(item);
+            }
+
+            B::RetPlaceholder => {
+                let item = Block::BlockAction("?ReturnNTimes".to_string(), vec![Item::Num(depth.to_string())]);
+                if wrap + 1 >= program.len {
+                    let temp = program.temp();
+                    vec.push(Block::Call(temp.clone()));
+                    self.stack.push((0, temp, Vec::new()));
+                    self.push(item, program);
+                } else {
+                    vec.push(item);
+                }
+            }
+
+            _ => if wrap + 1 >= program.len {
+                new!();
+            } else {
+                vec.push(item);
+            }
+        }
+    }
+
+    fn insert(mut self, into: &mut HashMap<String, Vec<Block>>) {
+        for (_, name, vec) in self.stack {
+            self.map.insert(name, vec);
+        }
+        into.extend(self.map);
     }
 
 }
