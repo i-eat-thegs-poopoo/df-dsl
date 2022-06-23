@@ -1,0 +1,664 @@
+{
+    "print": {
+        "id": "block",
+        "block": "player_action",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "No spaces",
+                            "tag": "Text Value Merging",
+                            "action": "SendMessage",
+                            "block": "player_action"
+                        }
+                    },
+                    "slot": 25
+                },
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Regular",
+                            "tag": "Alignment Mode",
+                            "action": "SendMessage",
+                            "block": "player_action"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "SendMessage",
+        "void": true
+    },
+    "give": {
+        "id": "block",
+        "block": "player_action",
+        "args": {
+            "items": []
+        },
+        "action": "GiveItems",
+        "void": true
+    },
+    "wrap": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "WrapNumber"
+    },
+    "lget": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "GetListValue"
+    },
+    "lset": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "SetListValue",
+        "void": true
+    },
+    "len": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "ListLength"
+    },
+    "dict": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "CreateDict"
+    },
+    "dget": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "GetDictValue"
+    },
+    "dset": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "SetDictValue",
+        "void": true
+    },
+    "remove": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "RemoveDictEntry",
+        "void": true
+    },
+    "keys": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "GetDictKeys"
+    },
+    "get_lx": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Plot coordinate",
+                            "tag": "Coordinate Type",
+                            "action": "GetCoord",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 25
+                },
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "X",
+                            "tag": "Coordinate",
+                            "action": "GetCoord",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "GetCoord"
+    },
+    "get_ly": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Plot coordinate",
+                            "tag": "Coordinate Type",
+                            "action": "GetCoord",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 25
+                },
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Y",
+                            "tag": "Coordinate",
+                            "action": "GetCoord",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "GetCoord"
+    },
+    "get_lz": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Plot coordinate",
+                            "tag": "Coordinate Type",
+                            "action": "GetCoord",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 25
+                },
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Z",
+                            "tag": "Coordinate",
+                            "action": "GetCoord",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "GetCoord"
+    },
+    "set_lx": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Plot coordinate",
+                            "tag": "Coordinate Type",
+                            "action": "SetCoord",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 25
+                },
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "X",
+                            "tag": "Coordinate",
+                            "action": "SetCoord",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "SetCoord",
+        "void": true
+    },
+    "set_ly": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Plot coordinate",
+                            "tag": "Coordinate Type",
+                            "action": "SetCoord",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 25
+                },
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Y",
+                            "tag": "Coordinate",
+                            "action": "SetCoord",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "SetCoord",
+        "void": true
+    },
+    "set_lz": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Plot coordinate",
+                            "tag": "Coordinate Type",
+                            "action": "SetCoord",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 25
+                },
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Z",
+                            "tag": "Coordinate",
+                            "action": "SetCoord",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "SetCoord",
+        "void": true
+    },
+    "loc": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "loc",
+                        "data": {
+                            "isBlock": false,
+                            "loc": {
+                                "x": 0.0,
+                                "y": 0.0,
+                                "z": 0.0,
+                                "pitch": 0.0,
+                                "yaw": 0.0
+                            }
+                        }
+                    },
+                    "slot": 1
+                },
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Plot coordinate",
+                            "tag": "Coordinate Type",
+                            "action": "SetAllCoords",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "SetAllCoords"
+    },
+    "translate": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "False",
+                            "tag": "Add Location Rotation",
+                            "action": "ShiftOnVector",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "ShiftOnVector"
+    },
+    "in_range": {
+        "id": "block",
+        "block": "if_var",
+        "args": {
+            "items": []
+        },
+        "action": "InRange"
+    },
+    "vec": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "Vector"
+    },
+    "from_to": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "VectorBetween"
+    },
+    "get_vx": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "X",
+                            "tag": "Component",
+                            "action": "GetVectorComp",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "GetVectorComp"
+    },
+    "get_vy": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Y",
+                            "tag": "Component",
+                            "action": "GetVectorComp",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "GetVectorComp"
+    },
+    "get_vz": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Z",
+                            "tag": "Component",
+                            "action": "GetVectorComp",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "GetVectorComp"
+    },
+    "set_vx": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "X",
+                            "tag": "Component",
+                            "action": "SetVectorComp",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "SetVectorComp",
+        "void": true
+    },
+    "set_vy": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Y",
+                            "tag": "Component",
+                            "action": "SetVectorComp",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "SetVectorComp",
+        "void": true
+    },
+    "set_vz": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Z",
+                            "tag": "Component",
+                            "action": "SetVectorComp",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "SetVectorComp",
+        "void": true
+    },
+    "len_sqrt": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Length",
+                            "tag": "Length Type",
+                            "action": "GetVectorLength",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "GetVectorLength"
+    },
+    "len_sq": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "bl_tag",
+                        "data": {
+                            "option": "Length Squared",
+                            "tag": "Length Type",
+                            "action": "GetVectorLength",
+                            "block": "set_var"
+                        }
+                    },
+                    "slot": 26
+                }
+            ]
+        },
+        "action": "GetVectorLength"
+    },
+    "set_len": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": [
+                {
+                    "item": {
+                        "id": "txt",
+                        "data": {
+                            "name": "VOID"
+                        }
+                    },
+                    "slot": 0
+                }
+            ]
+        },
+        "action": "SetVectorLength"
+    },
+    "mul": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "MultiplyVector"
+    },
+    "add": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "AddVectors"
+    },
+    "sub": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "SubtractVectors"
+    },
+    "cross": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "CrossProduct"
+    },
+    "dot": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "DotProduct"
+    },
+    "i_material": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "SetItemType"
+    },
+    "i_name": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "SetItemName"
+    },
+    "i_lore": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "SetItemLore"
+    },
+    "i_count": {
+        "id": "block",
+        "block": "set_var",
+        "args": {
+            "items": []
+        },
+        "action": "SetItemAmount"
+    }
+}

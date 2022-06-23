@@ -6,18 +6,19 @@ mod translate;
 use chumsky::prelude::*;
 use serde::{ Serialize, Deserialize };
 use serde_json::{ Value, error::Category };
-use crate::parser::{stmt::{ Stmt, /*Loop*/ }, decl::Decl };
-use std::{ ops::Range, collections::{ HashMap, hash_map::Entry }, mem::take as mtake };
+use crate::{ parser::{ stmt::Stmt, Decl }, nbt_edit::Template };
+use std::{ ops::Range, collections::{ HashMap, hash_map::Entry }, mem::take as mtake, path::{ Path, PathBuf } };
 use codeblock::Block;
-use emit::EmitStmt;
+use emit::{ EmitStmt, Line };
 
 #[derive(Debug)]
-pub struct Program {
-    pub errs: Vec<Simple<char>>,
+pub struct Program<'a> {
+    errs: &'a mut Vec<Simple<char>>,
+    path: PathBuf,
     funcs: Option<HashMap<String, Stmt>>,
     args: HashMap<String, Vec<String>>,
     actions: HashMap<String, Action>,
-    templates: HashMap<String, Vec<Block>>,
+    templates: HashMap<String, (Line, Vec<Block>)>,
     len: usize,
     temp: u32
 }
@@ -46,7 +47,7 @@ pub struct Items {
     #[serde(flatten)]
     extra: HashMap<String, Value>,
     #[serde(default, skip_serializing)]
-    slots: Vec<u32>,
+    slots: Option<Vec<u32>>,
     #[serde(default, skip_serializing)]
     curr: u32
 }
@@ -60,11 +61,12 @@ pub struct DfItem {
 impl Action {
 
     pub fn push(&mut self, item: Value) {
-        if self.args.slots.contains(&self.args.curr) {
+        let slots = self.args.slots.as_mut().unwrap();
+        if slots.contains(&self.args.curr) {
             self.args.curr += 1;
             self.push(item);
         } else {
-            self.args.slots.push(self.args.curr);
+            slots.push(self.args.curr);
             self.args.items.push(DfItem { item, slot: self.args.curr });
         }
     }
@@ -75,12 +77,22 @@ impl Action {
 
 }
 
-impl Program {
+impl <'a> Program<'a> {
 
-    pub fn gen(decls: Vec<(Decl, Range<usize>)>, errs: Vec<Simple<char>>, len: usize) -> (Vec<String>, Vec<Simple<char>>) {
+    pub fn gen(
+        path: String, 
+        decls: Vec<(Decl, Range<usize>)>, 
+        errs: &'a mut Vec<Simple<char>>, 
+        len: usize
+    ) -> Vec<Template> {
+
         let actions = include!("base.rs");
         let mut out = Self {
             errs,
+            path: Path::new(path.as_str())
+                .parent()
+                .expect(format!("error: file {path} has no parent directory").as_str())
+                .to_path_buf(),
             funcs: Some(HashMap::new()),
             args: HashMap::new(),
             actions,
@@ -88,6 +100,7 @@ impl Program {
             len,
             temp: 0
         };
+
         out.lines(decls);
         out.emit();
         translate::translate(out)
@@ -120,7 +133,7 @@ impl Program {
                     }
                 }
 
-                Decl::Use(path) => std::fs::read_to_string(path.clone())
+                Decl::Use(path) => std::fs::read_to_string(self.path.join(path.as_str()))
                     .map_err(|_| self.errs.push(Simple::custom(span.clone(), 
                         format!("could not find file {path} in directory")
                     )))
@@ -147,7 +160,13 @@ impl Program {
                             .get(&name)
                             .is_none() 
                         {
-                            body.args.slots = body.args.items.iter().map(|x| x.slot).collect();
+                            if body.args.slots.is_none() {
+                                let _ = body.args.slots.insert(body.args.items
+                                    .iter()
+                                    .map(|x| x.slot)
+                                    .collect()
+                                );
+                            }
                             body.args.curr = 0;
                             entry.or_insert(body); 
                         } else {
@@ -167,7 +186,7 @@ impl Program {
             .into_iter();
         for (key, mut body) in funcs {
             let body = mtake(&mut body);
-            EmitStmt::run(self, body, key);
+            EmitStmt::run(self, body, key, Line::Func);
         }
     }
 

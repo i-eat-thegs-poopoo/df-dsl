@@ -1,0 +1,34 @@
+use "data.json";
+
+fn main() {
+    root = [1, 
+        [2,
+            [5, "NIL", "NIL", "NIL"],
+            [6, "NIL", "NIL", "NIL"],
+            [7, "NIL", "NIL", "NIL"]
+        ],
+        [3,
+            [8, "NIL", "NIL", "NIL"],
+            [8, "NIL", "NIL", "NIL"],
+            [10, "NIL", "NIL", "NIL"]
+        ],
+        [4,
+            [11, "NIL", "NIL", "NIL"],
+            [12, "NIL", "NIL", "NIL"],
+            [13, "NIL", "NIL", "NIL"]
+        ]
+    ];
+    flip = invert(root);
+    print("root: ", root);
+    print("flip: ", flip);
+}
+
+fn invert(node) {
+    if (node == "NIL") return "NIL";
+    return [
+        node.get(1),
+        invert(node.get(4)),
+        invert(node.get(3)),
+        invert(node.get(2))
+    ];
+}

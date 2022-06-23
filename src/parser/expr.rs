@@ -4,7 +4,7 @@
 use chumsky::prelude::*;
 use std::ops::Range;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
 
     // Literals
@@ -12,10 +12,15 @@ pub enum Expr {
     Str(String),
     True,
     False,
+    List(Vec<Expr>),
+    Value(String, String),
+    Item,
 
     // Identifiers
     Ident(String),
     Func(Range<usize>, Box<Expr>, Vec<Expr>),
+    Game(String),
+    Save(String),
 
     // Arithmetic
     Neg(Box<Expr>),
@@ -41,28 +46,39 @@ pub enum Expr {
 
 // parser
 pub fn gen() -> impl Parser<char, Expr, Error = Simple<char>> {
+
     recursive(|expr| {
 
         // numbers
-        let number = text::int(10)
+        let number = filter(|c: &char| c.is_ascii_digit())
+            .repeated()
+            .at_least(1)
+            .map(|vec| vec.into_iter().collect::<String>())
             .chain::<char, _, _>(just('.').chain(text::digits(10)).or_not().flatten())
             .collect::<String>()
             .map(Expr::Num)
-            .labelled("number");
+            .labelled("number")
+            .boxed();
 
         // strings
         let escape = just::<_, _, Simple<char>>('\\')
             .ignore_then(just('\\')
                 .or(just('"'))
-                .or(just('n').to('\n'))
-            );
+                .or(just('n').to('\n')))
+            .boxed();
 
-        let string = just('"')
-            .ignore_then(filter(|c| *c != '\\' && *c != '"').or(escape).repeated())
-            .then_ignore(just('"'))
+        let raw_string = |quote| just(quote)
+            .ignore_then(filter(move |c| *c != '\\' && *c != quote)
+                .or(escape.clone())
+                .repeated())
+            .then_ignore(just(quote))
             .collect::<String>()
+            .boxed();
+
+        let string = raw_string('"').clone()
             .map(Expr::Str)
-            .labelled("string");
+            .labelled("string")
+            .boxed();
 
         // idents
         let ident = text::ident()
@@ -77,38 +93,99 @@ pub fn gen() -> impl Parser<char, Expr, Error = Simple<char>> {
                 | "while" 
                 | "for"
                 | "in"
+                | "of"
                 | "wait"
+                | "process"
+                | "bind"
                 | "fn"
                 | "use"
-                = id.as_str() { emit(Simple::custom(
-                    span, 
-                    format!("keyword {} cannot be used as an identifier", id))
-                ) }
-                id
-            }).map(Expr::Ident)
-            .labelled("uppercase identifier");
+                | "ITEM"
+                | "game"
+                | "save"
+                = id.as_str() { 
+                    emit(Simple::custom(span, format!("keyword {} cannot be used as an identifier", id)));
+                }
+
+                id})
+            .labelled("identifier")
+            .boxed();
 
         // function applications
         let call = ident.clone()
-            .or(expr.clone()
-                .delimited_by('(', ')')
-            ).map_with_span(|x, s| (x, s))
+            .map(Expr::Ident)
+            .or(expr.clone().delimited_by('(', ')'))
+            .map_with_span(|x, s| (x, s))
             .then(expr.clone()
                 .separated_by(just(','))
-                .allow_trailing() 
-                .delimited_by('(', ')')
-            ).map(|((func, s), args)| Expr::Func(s, Box::new(func), args))
-            .labelled("function call");
+                .then_ignore(just(',').padded().or_not())
+                .delimited_by('(', ')'))
+            .map(|((func, s), args)| Expr::Func(s, Box::new(func), args))
+            .labelled("function call")
+            .boxed();
+        
+        let value = raw_string('`')
+            .then(just('@')
+                .padded()
+                .ignore_then(choice((
+                    text::keyword("default").to("Default"),
+                    text::keyword("selection").to("Selection"),
+                    text::keyword("killer").to("Killer"),
+                    text::keyword("damager").to("Damager"),
+                    text::keyword("victim").to("Victim"),
+                    text::keyword("shooter").to("Shooter"),
+                    text::keyword("projectile").to("Projectile"),
+                    text::keyword("lastentity").to("Last Entity")))
+                .map(|s| s.to_string()))
+                .or_not())
+            .padded()
+            .map(|(val, sel)| Expr::Value(val, sel.map_or_else(
+                || "default".to_string(), 
+                |s| s.to_string())))
+            .labelled("game value")
+            .boxed();
+
+        fn scope(keyword: &'static str) -> impl Parser<char, String, Error = Simple<char>> {
+            text::keyword(keyword).padded()
+                .ignore_then(just('.'))
+                .ignore_then(ident.clone().padded())
+        }
 
         // atoms
-        let atom = number
-            .or(string)
-            .or(just("true") .map(|_| Expr::True))
-            .or(just("false").map(|_| Expr::False))
-            .or(call)
-            .or(ident)
-            .or(expr.delimited_by('(', ')'))
-            .padded();
+        let atom = choice((
+            number,
+            string,
+            value,
+            text::keyword("true") .map(|_| Expr::True),
+            text::keyword("false").map(|_| Expr::False),
+            text::keyword("ITEM").map(|_| Expr::Item),
+            scope("game").map(Expr::Game),
+            scope("save").map(Expr::Save),
+            call,
+            ident.clone().map(Expr::Ident),
+            expr.clone().delimited_by('(', ')'),
+            expr.clone()
+                .separated_by(just(','))
+                .then_ignore(just(',').padded().or_not())
+                .delimited_by('[', ']')
+                .map(Expr::List)
+                .labelled("list")))
+        .padded()
+        .boxed();
+        
+        let method_tail = just('.').padded()
+            .ignore_then(ident.map(Expr::Ident).map_with_span(|x, s| (x, s)))
+            .then(expr
+                .separated_by(just(','))
+                .then_ignore(just(',').padded().or_not())
+                .delimited_by('(', ')'))
+                .boxed();
+        let method = atom
+            .then(method_tail.repeated())
+            .foldl(|head, ((func, s), mut rest)| {
+                rest.insert(0, head);
+                Expr::Func(s, Box::new(func), rest)})
+            .labelled("method call")
+            .boxed();
 
         // operators
         let op = |c| just(c).padded().labelled("operator");
@@ -117,17 +194,20 @@ pub fn gen() -> impl Parser<char, Expr, Error = Simple<char>> {
         let unary = op('-').to(Expr::Neg as fn(_) -> _)
             .or(op('!').to(Expr::Not as fn(_) -> _))
             .repeated()
-            .then(atom)
+            .then(method)
             .foldr(|op, rhs| op(Box::new(rhs)))
-            .labelled("unary operation");
+            .labelled("unary operation")
+            .boxed();
 
         let product = unary.clone()
-            .then(op('*').to(Expr::Mul as fn(_, _) -> _)
-                .or(op('/').to(Expr::Div as fn(_, _) -> _))
-                .or(op('%').to(Expr::Mod as fn(_, _) -> _))
+            .then(choice((
+                    op('*').to(Expr::Mul as fn(_, _) -> _),
+                    op('/').to(Expr::Div as fn(_, _) -> _),
+                    op('%').to(Expr::Mod as fn(_, _) -> _)))
                 .then(unary)
                 .repeated())
-            .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)));
+            .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)))
+            .boxed();
         
         let sum = product.clone()
             .then(op('+').to(Expr::Add as fn(_, _) -> _)
@@ -135,34 +215,39 @@ pub fn gen() -> impl Parser<char, Expr, Error = Simple<char>> {
                 .then(product)
                 .repeated())
             .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)))
-            .labelled("arithmetic operation");
+            .labelled("arithmetic operation")
+            .boxed();
 
         let compare = sum.clone()
-            .then(ops("==").to(Expr::Eq as fn(_, _) -> _)
-                .or(ops("!=").to(Expr::Ne as fn(_, _) -> _))
-                .or(op('>').to(Expr::Gt as fn(_, _) -> _))
-                .or(op('<').to(Expr::Lt as fn(_, _) -> _))
-                .or(ops(">=").to(Expr::Ge as fn(_, _) -> _))
-                .or(ops("<=").to(Expr::Le as fn(_, _) -> _))
+            .then(choice((
+                    ops("==").to(Expr::Eq as fn(_, _) -> _),
+                    ops("!=").to(Expr::Ne as fn(_, _) -> _),
+                    op('>').to(Expr::Gt as fn(_, _) -> _),
+                    op('<').to(Expr::Lt as fn(_, _) -> _),
+                    ops(">=").to(Expr::Ge as fn(_, _) -> _),
+                    ops("<=").to(Expr::Le as fn(_, _) -> _)))
                 .then(sum)
                 .repeated())
             .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)))
-            .labelled("arithmetic operation");
+            .labelled("arithmetic operation")
+            .boxed();
 
         let and = compare.clone()
             .then(ops("&&").to(Expr::And as fn(_, _) -> _)
                 .then(compare)
                 .repeated())
             .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)))
-            .labelled("arithmetic operation");
+            .labelled("arithmetic operation")
+            .boxed();
 
         let or = and.clone()
             .then(ops("||").to(Expr::Or as fn(_, _) -> _)
                 .then(and)
                 .repeated())
             .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)))
-            .labelled("arithmetic operation");
+            .labelled("arithmetic operation")
+            .boxed();
 
-        or.padded()
+        or.padded().boxed()
     })
 }

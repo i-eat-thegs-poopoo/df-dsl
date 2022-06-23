@@ -5,7 +5,11 @@ use serde_json::{ Value, json };
 pub enum Item {
     Num(String),
     Text(String),
-    Var(String)
+    Var(String),
+    Game(String),
+    Save(String),
+    Value(String, String),
+    Item,
 }
 
 impl Item {
@@ -14,7 +18,11 @@ impl Item {
         match self {
             Self::Num(e) => e,
             Self::Text(e) => e,
-            Self::Var(e) => e
+            Self::Var(e) => e,
+            Self::Game(e) => e,
+            Self::Save(e) => e,
+            Self::Value(e, _) => e,
+            Self::Item => panic!("tried to get text of invalid item")
         }
     }
 
@@ -38,7 +46,34 @@ impl Item {
                     "name": e,
                     "scope": "local"
                 }
-            })
+            }),
+            Self::Game(e) => json!({
+                "id": "var",
+                "data": {
+                    "name": e,
+                    "scope": "unsaved"
+                }
+            }),
+            Self::Save(e) => json!({
+                "id": "var",
+                "data": {
+                    "name": e,
+                    "scope": "saved"
+                }
+            }),
+            Self::Value(e, sel) => json!({
+                "id": "g_val",
+                "data": {
+                    "type": e,
+                    "target": sel
+                }
+            }),
+            Self::Item => json!({
+                "id": "item",
+                "data": {
+                    "item": "{DF_NBT:2586,id:\"minecraft:stone\",Count:1b}"
+                }
+            }),
         }
     }
 
@@ -49,7 +84,11 @@ impl std::fmt::Display for Item {
         match self {
             Self::Num(e) => f.write_str(e.as_str()),
             Self::Text(e) => f.write_str(e.as_str()),
-            Self::Var(e) => write!(f, "%var({})", e)
+            Self::Var(e) => write!(f, "%var({})", e),
+            Self::Game(e) => write!(f, "%var({})", e),
+            Self::Save(e) => write!(f, "%var({})", e),
+            Self::Value(..) => write!(f, "GAME_VALUE"),
+            Self::Item => write!(f, "ITEM"),
         }
     }
 }
@@ -58,6 +97,7 @@ impl std::fmt::Display for Item {
 pub enum Block {
     BlockAction(String, Vec<Item>),
     Call(String),
+    Process(bool, String),
 
     IfAction(String, bool, bool, Vec<Item>), // second bool is if it has else stmt
     Else,
